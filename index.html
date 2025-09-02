@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Logic Simplifier → Verilog Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #ff9a9e, #fecfef);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .controls select, .controls button {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            margin-right: 10px;
+        }
+        
+        .controls button {
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .controls button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            font-weight: bold;
+        }
+        
+        .truth-table select {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        
+        .kmap-cell {
+            width: 50px;
+            height: 50px;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .kmap-cell.one {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .kmap-cell.zero {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .kmap-cell.dontcare {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .expression-output {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin: 15px 0;
+            position: relative;
+        }
+        
+        .code-actions {
+            margin-top: 10px;
+        }
+        
+        .code-actions button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: all 0.3s;
+        }
+        
+        .code-actions button:hover {
+            background: #229954;
+            transform: translateY(-1px);
+        }
+        
+        .math-display {
+            text-align: center;
+            font-size: 1.3em;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .row-binary {
+            font-family: 'Courier New', monospace;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔹 Digital Logic Simplifier → Verilog Generator</h1>
+            <p>Generate optimized Boolean expressions and Verilog code from truth tables</p>
+        </div>
+        
+        <div class="section">
+            <h2>📝 Truth Table Input</h2>
+            <div class="controls">
+                <label for="varCount">Number of Variables:</label>
+                <select id="varCount">
+                    <option value="2">2 Variables</option>
+                    <option value="3" selected>3 Variables</option>
+                    <option value="4">4 Variables</option>
+                    <option value="5">5 Variables</option>
+                </select>
+                <button onclick="generateTruthTable()">Generate Table</button>
+                <button onclick="randomFill()">Random Fill</button>
+                <button onclick="clearTable()">Clear All</button>
+            </div>
+            <div id="truthTableContainer"></div>
+        </div>
+        
+        <div class="section">
+            <h2>🗺️ Karnaugh Map</h2>
+            <div id="kmapContainer"></div>
+        </div>
+        
+        <div class="section">
+            <h2>⚡ Simplified Expression</h2>
+            <div class="expression-output">
+                <strong>Raw Expression:</strong>
+                <div id="rawExpression">Generate truth table first</div>
+            </div>
+            <div class="math-display">
+                <div id="mathExpression">$$F = \text{Generate truth table first}$$</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🔧 Verilog Module</h2>
+            <div class="code-block" id="verilogCode">// Generate truth table and process first</div>
+            <div class="code-actions">
+                <button onclick="copyToClipboard('verilogCode')">📋 Copy Code</button>
+                <button onclick="downloadFile('circuit.v', 'verilogCode')">💾 Download .v</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🧪 Verilog Testbench</h2>
+            <div class="code-block" id="testbenchCode">// Generate truth table and process first</div>
+            <div class="code-actions">
+                <button onclick="copyToClipboard('testbenchCode')">📋 Copy Code</button>
+                <button onclick="downloadFile('tb_circuit.v', 'testbenchCode')">💾 Download .v</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentVarCount = 3;
+        let variables = ['A', 'B', 'C', 'D', 'E'];
+        let truthTable = [];
+        
+        // Initialize with 3 variables
+        document.addEventListener('DOMContentLoaded', function() {
+            generateTruthTable();
+        });
+        
+        document.getElementById('varCount').addEventListener('change', function() {
+            currentVarCount = parseInt(this.value);
+            generateTruthTable();
+        });
+        
+        function generateTruthTable() {
+            const container = document.getElementById('truthTableContainer');
+            const numRows = Math.pow(2, currentVarCount);
+            
+            let html = '<table class="truth-table"><thead><tr>';
+            
+            // Add variable headers
+            for (let i = 0; i < currentVarCount; i++) {
+                html += `<th>${variables[i]}</th>`;
+            }
+            html += '<th>F</th></tr></thead><tbody>';
+            
+            // Generate rows
+            truthTable = [];
+            for (let i = 0; i < numRows; i++) {
+                const binary = i.toString(2).padStart(currentVarCount, '0');
+                html += `<tr><td class="row-binary">${binary.split('').join('</td><td class="row-binary">')}</td>`;
+                html += `<td><select onchange="updateTruthTable()" id="output_${i}">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="X">X</option>
+                </select></td></tr>`;
+                
+                truthTable.push({
+                    inputs: binary.split('').map(b => parseInt(b)),
+                    output: '0'
+                });
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+            
+            updateProcessing();
+        }
+        
+        function updateTruthTable() {
+            for (let i = 0; i < truthTable.length; i++) {
+                const outputSelect = document.getElementById(`output_${i}`);
+                truthTable[i].output = outputSelect.value;
+            }
+            updateProcessing();
+        }
+        
+        function randomFill() {
+            for (let i = 0; i < truthTable.length; i++) {
+                const randomValue = Math.random() < 0.7 ? Math.floor(Math.random() * 2).toString() : 'X';
+                document.getElementById(`output_${i}`).value = randomValue;
+                truthTable[i].output = randomValue;
+            }
+            updateProcessing();
+        }
+        
+        function clearTable() {
+            for (let i = 0; i < truthTable.length; i++) {
+                document.getElementById(`output_${i}`).value = '0';
+                truthTable[i].output = '0';
+            }
+            updateProcessing();
+        }
+        
+        function updateProcessing() {
+            generateKMap();
+            simplifyExpression();
+            generateVerilog();
+            generateTestbench();
+        }
+        
+        function generateKMap() {
+            const container = document.getElementById('kmapContainer');
+            
+            if (currentVarCount === 2) {
+                generateKMap2Var(container);
+            } else if (currentVarCount === 3) {
+                generateKMap3Var(container);
+            } else if (currentVarCount === 4) {
+                generateKMap4Var(container);
+            } else {
+                container.innerHTML = '<p>K-Map visualization not implemented for 5 variables yet.</p>';
+            }
+        }
+        
+        function generateKMap2Var(container) {
+            const grayCode = ['00', '01', '11', '10'];
+            let html = '<table><tr><th></th><th>B=0</th><th>B=1</th></tr>';
+            
+            for (let a = 0; a < 2; a++) {
+                html += `<tr><th>A=${a}</th>`;
+                for (let b = 0; b < 2; b++) {
+                    const index = a * 2 + b;
+                    const value = truthTable[index].output;
+                    const cellClass = value === '1' ? 'one' : value === 'X' ? 'dontcare' : 'zero';
+                    html += `<td class="kmap-cell ${cellClass}">${value}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</table>';
+            container.innerHTML = html;
+        }
+        
+        function generateKMap3Var(container) {
+            let html = '<table><tr><th></th><th>BC=00</th><th>BC=01</th><th>BC=11</th><th>BC=10</th></tr>';
+            
+            for (let a = 0; a < 2; a++) {
+                html += `<tr><th>A=${a}</th>`;
+                const bcOrder = [0, 1, 3, 2]; // Gray code order for BC
+                for (let bcIdx of bcOrder) {
+                    const index = a * 4 + bcIdx;
+                    const value = truthTable[index].output;
+                    const cellClass = value === '1' ? 'one' : value === 'X' ? 'dontcare' : 'zero';
+                    html += `<td class="kmap-cell ${cellClass}">${value}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</table>';
+            container.innerHTML = html;
+        }
+        
+        function generateKMap4Var(container) {
+            let html = '<table><tr><th></th><th>CD=00</th><th>CD=01</th><th>CD=11</th><th>CD=10</th></tr>';
+            
+            const abOrder = [0, 1, 3, 2]; // Gray code for AB
+            const cdOrder = [0, 1, 3, 2]; // Gray code for CD
+            
+            for (let abIdx of abOrder) {
+                const ab = abIdx.toString(2).padStart(2, '0');
+                html += `<tr><th>AB=${ab}</th>`;
+                for (let cdIdx of cdOrder) {
+                    const index = abIdx * 4 + cdIdx;
+                    const value = truthTable[index].output;
+                    const cellClass = value === '1' ? 'one' : value === 'X' ? 'dontcare' : 'zero';
+                    html += `<td class="kmap-cell ${cellClass}">${value}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</table>';
+            container.innerHTML = html;
+        }
+        
+        function simplifyExpression() {
+            // Get minterms and don't cares
+            const minterms = [];
+            const dontCares = [];
+            
+            for (let i = 0; i < truthTable.length; i++) {
+                if (truthTable[i].output === '1') {
+                    minterms.push(i);
+                } else if (truthTable[i].output === 'X') {
+                    dontCares.push(i);
+                }
+            }
+            
+            if (minterms.length === 0) {
+                document.getElementById('rawExpression').textContent = 'F = 0';
+                document.getElementById('mathExpression').innerHTML = '$$F = 0$$';
+                MathJax.typesetPromise();
+                return;
+            }
+            
+            if (minterms.length === Math.pow(2, currentVarCount)) {
+                document.getElementById('rawExpression').textContent = 'F = 1';
+                document.getElementById('mathExpression').innerHTML = '$$F = 1$$';
+                MathJax.typesetPromise();
+                return;
+            }
+            
+            // Simple minimization - convert minterms to sum of products
+            const terms = minterms.map(minterm => {
+                const binary = minterm.toString(2).padStart(currentVarCount, '0');
+                const termParts = [];
+                for (let i = 0; i < currentVarCount; i++) {
+                    if (binary[i] === '1') {
+                        termParts.push(variables[i]);
+                    } else {
+                        termParts.push(`~${variables[i]}`);
+                    }
+                }
+                return termParts.join(' & ');
+            });
+            
+            const rawExpr = terms.join(' | ');
+            document.getElementById('rawExpression').textContent = `F = ${rawExpr}`;
+            
+            // Convert to LaTeX
+            const latexTerms = minterms.map(minterm => {
+                const binary = minterm.toString(2).padStart(currentVarCount, '0');
+                const termParts = [];
+                for (let i = 0; i < currentVarCount; i++) {
+                    if (binary[i] === '1') {
+                        termParts.push(variables[i]);
+                    } else {
+                        termParts.push(`\\overline{${variables[i]}}`);
+                    }
+                }
+                return termParts.join('');
+            });
+            
+            const latexExpr = latexTerms.join(' + ');
+            document.getElementById('mathExpression').innerHTML = `$$F = ${latexExpr}$$`;
+            MathJax.typesetPromise();
+        }
+        
+        function generateVerilog() {
+            const vars = variables.slice(0, currentVarCount);
+            const inputs = vars.map(v => `input ${v}`).join(', ');
+            
+            // Get minterms for Verilog expression
+            const minterms = [];
+            for (let i = 0; i < truthTable.length; i++) {
+                if (truthTable[i].output === '1') {
+                    minterms.push(i);
+                }
+            }
+            
+            let verilogExpr;
+            if (minterms.length === 0) {
+                verilogExpr = '1\'b0';
+            } else if (minterms.length === Math.pow(2, currentVarCount)) {
+                verilogExpr = '1\'b1';
+            } else {
+                const terms = minterms.map(minterm => {
+                    const binary = minterm.toString(2).padStart(currentVarCount, '0');
+                    const termParts = [];
+                    for (let i = 0; i < currentVarCount; i++) {
+                        if (binary[i] === '1') {
+                            termParts.push(variables[i]);
+                        } else {
+                            termParts.push(`~${variables[i]}`);
+                        }
+                    }
+                    return `(${termParts.join(' & ')})`;
+                });
+                verilogExpr = terms.join(' | ');
+            }
+            
+            const verilogCode = `module circuit(${inputs}, output F);
+    assign F = ${verilogExpr};
+endmodule`;
+            
+            document.getElementById('verilogCode').textContent = verilogCode;
+        }
+        
+        function generateTestbench() {
+            const vars = variables.slice(0, currentVarCount);
+            const n = currentVarCount;
+            
+            const testbenchCode = `module tb_circuit;
+    reg ${vars.join(', ')};
+    wire F;
+    
+    circuit uut(${vars.join(', ')}, F);
+    
+    integer i;
+    initial begin
+        $display("${vars.join(' ')} | F");
+        $display("${'-'.repeat(vars.length * 2 + 3)}");
+        
+        for(i = 0; i < ${Math.pow(2, n)}; i = i + 1) begin
+            {${vars.join(', ')}} = i;
+            #1;
+            $display("%b | %b", i[${n-1}:0], F);
+        end
+        
+        $finish;
+    end
+endmodule`;
+            
+            document.getElementById('testbenchCode').textContent = testbenchCode;
+        }
+        
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            navigator.clipboard.writeText(element.textContent).then(() => {
+                alert('Code copied to clipboard!');
+            });
+        }
+        
+        function downloadFile(filename, elementId) {
+            const element = document.getElementById(elementId);
+            const content = element.textContent;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
