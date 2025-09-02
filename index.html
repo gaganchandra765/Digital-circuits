@@ -213,11 +213,18 @@
         <div class="section">
             <h2>⚡ Simplified Expression</h2>
             <div class="expression-output">
-                <strong>Raw Expression:</strong>
+                <strong>Sum of Products (SOP):</strong>
                 <div id="rawExpression">Generate truth table first</div>
             </div>
+            <div class="expression-output">
+                <strong>Minimized Form:</strong>
+                <div id="minimizedExpression">Generate truth table first</div>
+            </div>
             <div class="math-display">
-                <div id="mathExpression">$$F = \text{Generate truth table first}$$</div>
+                <div id="mathExpression">$F = \text{Generate truth table first}$</div>
+            </div>
+            <div class="math-display">
+                <div id="mathMinimized">$F_{min} = \text{Generate truth table first}$</div>
             </div>
         </div>
         
@@ -408,19 +415,23 @@
             
             if (minterms.length === 0) {
                 document.getElementById('rawExpression').textContent = 'F = 0';
-                document.getElementById('mathExpression').innerHTML = '$$F = 0$$';
+                document.getElementById('minimizedExpression').textContent = 'F = 0';
+                document.getElementById('mathExpression').innerHTML = '$F = 0$';
+                document.getElementById('mathMinimized').innerHTML = '$F_{min} = 0$';
                 MathJax.typesetPromise();
                 return;
             }
             
             if (minterms.length === Math.pow(2, currentVarCount)) {
                 document.getElementById('rawExpression').textContent = 'F = 1';
-                document.getElementById('mathExpression').innerHTML = '$$F = 1$$';
+                document.getElementById('minimizedExpression').textContent = 'F = 1';
+                document.getElementById('mathExpression').innerHTML = '$F = 1$';
+                document.getElementById('mathMinimized').innerHTML = '$F_{min} = 1$';
                 MathJax.typesetPromise();
                 return;
             }
             
-            // Simple minimization - convert minterms to sum of products
+            // Sum of Products form
             const terms = minterms.map(minterm => {
                 const binary = minterm.toString(2).padStart(currentVarCount, '0');
                 const termParts = [];
@@ -437,7 +448,12 @@
             const rawExpr = terms.join(' | ');
             document.getElementById('rawExpression').textContent = `F = ${rawExpr}`;
             
-            // Convert to LaTeX
+            // Minimized form using Quine-McCluskey
+            const minimizedTerms = quineMcCluskey(minterms, dontCares, currentVarCount);
+            const minimizedExpr = minimizedTerms.length > 0 ? minimizedTerms.join(' | ') : '0';
+            document.getElementById('minimizedExpression').textContent = `F = ${minimizedExpr}`;
+            
+            // Convert SOP to LaTeX
             const latexTerms = minterms.map(minterm => {
                 const binary = minterm.toString(2).padStart(currentVarCount, '0');
                 const termParts = [];
@@ -452,8 +468,217 @@
             });
             
             const latexExpr = latexTerms.join(' + ');
-            document.getElementById('mathExpression').innerHTML = `$$F = ${latexExpr}$$`;
+            document.getElementById('mathExpression').innerHTML = `$F = ${latexExpr}$`;
+            
+            // Convert minimized to LaTeX
+            const minimizedLatex = convertToLatex(minimizedTerms);
+            document.getElementById('mathMinimized').innerHTML = `$F_{min} = ${minimizedLatex}$`;
+            
             MathJax.typesetPromise();
+        }
+        
+        // Quine-McCluskey Algorithm Implementation
+        function quineMcCluskey(minterms, dontCares, numVars) {
+            if (minterms.length === 0) return [];
+            
+            const allTerms = [...minterms, ...dontCares];
+            
+            // Step 1: Group terms by number of 1s
+            let groups = groupByOnes(allTerms, numVars);
+            
+            // Step 2: Find prime implicants
+            const primeImplicants = findPrimeImplicants(groups, numVars);
+            
+            // Step 3: Essential prime implicant chart
+            const essentialPIs = findEssentialPrimeImplicants(primeImplicants, minterms, numVars);
+            
+            // Convert to readable format
+            return essentialPIs.map(pi => termToString(pi, numVars));
+        }
+        
+        function groupByOnes(terms, numVars) {
+            const groups = {};
+            
+            for (let term of terms) {
+                const binary = term.toString(2).padStart(numVars, '0');
+                const ones = binary.split('').filter(bit => bit === '1').length;
+                
+                if (!groups[ones]) groups[ones] = [];
+                groups[ones].push({
+                    value: term,
+                    binary: binary,
+                    used: false
+                });
+            }
+            
+            return groups;
+        }
+        
+        function findPrimeImplicants(groups, numVars) {
+            let primeImplicants = [];
+            let currentLevel = groups;
+            
+            while (Object.keys(currentLevel).length > 0) {
+                let nextLevel = {};
+                let hasNewGroups = false;
+                
+                const groupKeys = Object.keys(currentLevel).map(k => parseInt(k)).sort((a, b) => a - b);
+                
+                for (let i = 0; i < groupKeys.length - 1; i++) {
+                    const currentGroup = currentLevel[groupKeys[i]] || [];
+                    const nextGroup = currentLevel[groupKeys[i + 1]] || [];
+                    
+                    for (let term1 of currentGroup) {
+                        for (let term2 of nextGroup) {
+                            const combined = combineBinaryStrings(term1.binary, term2.binary);
+                            if (combined !== null) {
+                                term1.used = true;
+                                term2.used = true;
+                                
+                                const ones = combined.split('').filter(bit => bit === '1').length;
+                                if (!nextLevel[ones]) nextLevel[ones] = [];
+                                
+                                // Avoid duplicates
+                                const exists = nextLevel[ones].some(item => item.binary === combined);
+                                if (!exists) {
+                                    nextLevel[ones].push({
+                                        binary: combined,
+                                        used: false
+                                    });
+                                    hasNewGroups = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add unused terms as prime implicants
+                for (let group of Object.values(currentLevel)) {
+                    for (let term of group) {
+                        if (!term.used && !primeImplicants.some(pi => pi.binary === term.binary)) {
+                            primeImplicants.push(term);
+                        }
+                    }
+                }
+                
+                currentLevel = hasNewGroups ? nextLevel : {};
+            }
+            
+            return primeImplicants;
+        }
+        
+        function combineBinaryStrings(bin1, bin2) {
+            if (bin1.length !== bin2.length) return null;
+            
+            let differences = 0;
+            let result = '';
+            
+            for (let i = 0; i < bin1.length; i++) {
+                if (bin1[i] !== bin2[i]) {
+                    differences++;
+                    if (differences > 1) return null;
+                    result += '-';
+                } else {
+                    result += bin1[i];
+                }
+            }
+            
+            return differences === 1 ? result : null;
+        }
+        
+        function findEssentialPrimeImplicants(primeImplicants, minterms, numVars) {
+            // Simplified approach - return all prime implicants for basic minimization
+            // In a full implementation, this would solve the covering problem
+            
+            // Remove redundant terms
+            const essential = [];
+            const covered = new Set();
+            
+            // Greedy approach: select PIs that cover the most uncovered minterms
+            while (covered.size < minterms.length) {
+                let bestPI = null;
+                let bestCoverage = 0;
+                
+                for (let pi of primeImplicants) {
+                    const coverage = countCoverage(pi, minterms, covered, numVars);
+                    if (coverage > bestCoverage) {
+                        bestCoverage = coverage;
+                        bestPI = pi;
+                    }
+                }
+                
+                if (bestPI) {
+                    essential.push(bestPI);
+                    markCovered(bestPI, minterms, covered, numVars);
+                    primeImplicants = primeImplicants.filter(pi => pi !== bestPI);
+                } else {
+                    break;
+                }
+            }
+            
+            return essential;
+        }
+        
+        function countCoverage(pi, minterms, covered, numVars) {
+            let count = 0;
+            for (let minterm of minterms) {
+                if (!covered.has(minterm) && termCoversMinterm(pi, minterm, numVars)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+        
+        function markCovered(pi, minterms, covered, numVars) {
+            for (let minterm of minterms) {
+                if (termCoversMinterm(pi, minterm, numVars)) {
+                    covered.add(minterm);
+                }
+            }
+        }
+        
+        function termCoversMinterm(pi, minterm, numVars) {
+            const binary = minterm.toString(2).padStart(numVars, '0');
+            const piBinary = pi.binary;
+            
+            for (let i = 0; i < numVars; i++) {
+                if (piBinary[i] !== '-' && piBinary[i] !== binary[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function termToString(pi, numVars) {
+            const parts = [];
+            for (let i = 0; i < numVars; i++) {
+                if (pi.binary[i] === '1') {
+                    parts.push(variables[i]);
+                } else if (pi.binary[i] === '0') {
+                    parts.push(`~${variables[i]}`);
+                }
+                // Skip '-' (don't care positions)
+            }
+            return parts.length > 1 ? `(${parts.join(' & ')})` : (parts.length === 1 ? parts[0] : '1');
+        }
+        
+        function convertToLatex(terms) {
+            if (terms.length === 0) return '0';
+            
+            const latexTerms = terms.map(term => {
+                // Extract variables from term string
+                const termCleaned = term.replace(/[()]/g, '');
+                const parts = termCleaned.split(' & ');
+                
+                return parts.map(part => {
+                    if (part.startsWith('~')) {
+                        return `\\overline{${part.substring(1)}}`;
+                    }
+                    return part;
+                }).join('');
+            });
+            
+            return latexTerms.join(' + ');
         }
         
         function generateVerilog() {
